@@ -1,10 +1,10 @@
 import axios from "axios";
 import { parseStringPromise } from "xml2js";
-import { stripHtml, extractPlainStrings } from "./utils.js";
+import { ensureArray, extractPlainStrings, normalizeResult } from "./utils.js";
+import fs from "fs";
+import { writeToPath } from "@fast-csv/format";
 
-const URL = "https://www.bulclima.com/tools/api/items/137";
-
-const ensureArray = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+const URL = "https://www.bulclima.com/tools/api/items/363";
 
 export const fetchData = async () => {
   try {
@@ -61,9 +61,11 @@ export const fetchData = async () => {
         name: product.title ?? product.name ?? null,
         price: product.price ?? null,
         description: product.description ?? null,
-        images,
         brand: brandName,
-        ...productTechData,
+        type: product.category ?? null,
+        category: product.sub_category ?? null,
+        images,
+        // ...productTechData,
       };
     });
 
@@ -74,4 +76,34 @@ export const fetchData = async () => {
   }
 };
 
-fetchData().then((data) => console.log(data));
+function generateCSV(result) {
+  const outputDir = "./output/";
+
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/:/g, "-")
+    .replace(/\.\d{3}Z$/, "");
+
+  const normalizedResults = result;
+
+  writeToPath(`${outputDir}products-${timestamp}.csv`, normalizedResults, {
+    headers: true,
+  })
+    .on("finish", () => {
+      console.log("CSV file written successfully");
+    })
+    .on("error", (err) => {
+      console.error("Error writing CSV file:", err);
+    });
+}
+
+const run = async () => {
+  const data = await fetchData();
+  generateCSV(data);
+};
+
+run();
